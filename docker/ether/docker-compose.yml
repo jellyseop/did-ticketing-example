@@ -1,0 +1,17 @@
+version: '3'
+services:
+  ganache:
+    image: trufflesuite/ganache-cli:latest
+    container_name: pyokemon-ganache
+    restart: unless-stopped
+    ports:
+      - "8545:8545"
+    command:
+      - "--deterministic"
+      - "--mnemonic=pyokemon blockchain did service test mnemonic words please do not use in production"
+      - "--gasLimit=10000000"
+      - "--accounts=10"
+      - "--defaultBalanceEther=1000"
+      - "--blockTime=2"
+    volumes:
+      - ./data:/var/lib/ganache

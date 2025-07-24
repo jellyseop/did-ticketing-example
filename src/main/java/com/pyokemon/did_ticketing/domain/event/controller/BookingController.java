@@ -1,7 +1,7 @@
 package com.pyokemon.did_ticketing.domain.event.controller;
 
 import com.pyokemon.did_ticketing.common.dto.ApiResponseDto;
-import com.pyokemon.did_ticketing.domain.event.dto.EventDto;
+import com.pyokemon.did_ticketing.domain.event.dto.BookingDto;
 import com.pyokemon.did_ticketing.domain.event.service.EventService;
 import com.pyokemon.did_ticketing.security.jwt.authentication.UserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,11 +20,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/event")
+@RequestMapping("/api/booking")
 @RequiredArgsConstructor
-@Tag(name = "이벤트 API", description = "이벤트 조회 관련 API")
+@Tag(name = "예매 API", description = "예매 조회 관련 API")
 @SecurityRequirement(name = "bearerAuth")
-public class EventController {
+public class BookingController {
 
     private final EventService eventService;
 
@@ -40,10 +40,10 @@ public class EventController {
             content = @Content(schema = @Schema(implementation = EventListResponse.class))),
         @ApiResponse(responseCode = "401", description = "인증 실패")
     })
-    public ResponseEntity<ApiResponseDto<List<EventDto>>> getUserEvents(
+    public ResponseEntity<ApiResponseDto<List<BookingDto>>> getUserBookings(
             @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        List<EventDto> events = eventService.getEventsByUserId(userPrincipal.getUserId());
-        return ResponseEntity.ok(ApiResponseDto.createOk(events));
+        List<BookingDto> bookings = eventService.getBookingsByUserId(userPrincipal.getUserId());
+        return ResponseEntity.ok(ApiResponseDto.createOk(bookings));
     }
 
     /**
@@ -64,19 +64,19 @@ public class EventController {
     public ResponseEntity<?> getEventById(
             @Parameter(description = "이벤트 ID", required = true) @PathVariable String id,
             @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        EventDto event = eventService.getEventById(id);
-        if (event == null) {
+        BookingDto booking = eventService.getBookingById(id);
+        if (booking == null) {
             return ResponseEntity.notFound().build();
         }
         
         // 자신의 예매 내역만 조회 가능
-        if (!event.getUserId().equals(userPrincipal.getUserId())) {
+        if (!booking.getUserId().equals(userPrincipal.getUserId())) {
             return ResponseEntity.status(403).body(
                 ApiResponseDto.createError("FORBIDDEN", "접근 권한이 없습니다.")
             );
         }
         
-        return ResponseEntity.ok(ApiResponseDto.createOk(event));
+        return ResponseEntity.ok(ApiResponseDto.createOk(booking));
     }
     
     // Swagger 문서화를 위한 스키마 클래스
@@ -89,7 +89,7 @@ public class EventController {
         private String message;
         
         @Schema(description = "이벤트 목록")
-        private List<EventDto> data;
+        private List<BookingDto> data;
     }
     
     @Schema(description = "이벤트 상세 응답")
@@ -101,6 +101,6 @@ public class EventController {
         private String message;
         
         @Schema(description = "이벤트 정보")
-        private EventDto data;
+        private BookingDto data;
     }
 }

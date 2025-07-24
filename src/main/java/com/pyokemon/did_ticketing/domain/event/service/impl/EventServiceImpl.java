@@ -1,6 +1,6 @@
 package com.pyokemon.did_ticketing.domain.event.service.impl;
 
-import com.pyokemon.did_ticketing.domain.event.dto.EventDto;
+import com.pyokemon.did_ticketing.domain.event.dto.BookingDto;
 import com.pyokemon.did_ticketing.domain.event.mock.EventMockData;
 import com.pyokemon.did_ticketing.domain.event.service.EventService;
 import org.springframework.stereotype.Service;
@@ -12,24 +12,14 @@ import java.util.List;
  */
 @Service
 public class EventServiceImpl implements EventService {
-
-    /**
-     * 모든 이벤트 목록 조회 (목 데이터)
-     * @return 이벤트 목록
-     */
-    @Override
-    public List<EventDto> getAllEvents() {
-        return EventMockData.getMockEvents();
-    }
-
     /**
      * ID로 이벤트 조회 (목 데이터)
      * @param id 이벤트 ID
      * @return 이벤트 정보
      */
     @Override
-    public EventDto getEventById(String id) {
-        return EventMockData.getEventById(id);
+    public BookingDto getBookingById(String id) {
+        return EventMockData.getBookingById(id);
     }
     
     /**
@@ -38,7 +28,7 @@ public class EventServiceImpl implements EventService {
      * @return 사용자의 이벤트 목록
      */
     @Override
-    public List<EventDto> getEventsByUserId(String userId) {
-        return EventMockData.getEventsByUserId(userId);
+    public List<BookingDto> getBookingsByUserId(String userId) {
+        return EventMockData.getBookingsByUserId(userId);
     }
 } 

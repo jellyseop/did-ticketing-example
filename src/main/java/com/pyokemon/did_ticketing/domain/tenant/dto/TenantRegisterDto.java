@@ -17,9 +17,6 @@ public class TenantRegisterDto {
     private String tenantName;
 
     public Tenant toEntity() {
-        Tenant tenant = new Tenant();
-        tenant.setName(tenantName);
-
-        return tenant;
+        return Tenant.builder().name(tenantName).build();
     }
 }

@@ -1,6 +1,8 @@
 package com.pyokemon.did_ticketing.domain.did.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pyokemon.did_ticketing.common.exception.BadParameter;
+import com.pyokemon.did_ticketing.common.exception.NotFound;
 import com.pyokemon.did_ticketing.domain.did.model.DidDocument;
 import com.pyokemon.did_ticketing.domain.did.repository.DidDocumentRepository;
 import com.pyokemon.did_ticketing.domain.did.service.BlockchainService;
@@ -71,7 +73,7 @@ public class DidServiceImpl implements DidService {
             
             // 6. 블록체인에 DID 문서 해시 등록 (테스트를 위해 로컬 저장소에도 저장)
             blockchainService.registerDid(id, didDocumentHash);
-            documentRepository.store(id, didDocumentHash, didDocument);
+            documentRepository.store(id, didDocument);
             
             log.info("DID 생성 완료: did={}, hash={}", id, didDocumentHash);
             return new DidResult(id, didDocument, accountInfo);
@@ -82,44 +84,27 @@ public class DidServiceImpl implements DidService {
     }
     
     /**
-     * 테넌트를 위한 DID 생성
-     * @param tenant 테넌트 ID
-     * @return 생성된 DID 정보
+     * 테넌트 키 서버측 저장
+     * @param didResult 테넌트 DID 정보
+     * @return 생성된 DID 정보 경로
      */
     @Transactional
     @Override
-    public TenantDid createTenantDid(Tenant tenant) {
+    public String storeTenantKeys(Tenant tenant, DidResult didResult) {
         try {
-            // 1. 기존 테넌트 DID 확인
-            //물리적 삭제 X -> !is_valid 인 아이 존재한다면 throw
-            if (tenantDidRepository.findByTenant(tenant).isPresent()) {
-                throw new IllegalStateException("테넌트가 이미 DID를 가지고 있습니다: " + tenant.getId());
-            }
-            
-            // 2. DID 생성 (블록체인 계정 및 DID 문서 생성)
-            DidResult didResult = createDid();
-            
             // 3. 개인키 정보 시크릿 저장소에 저장
             String secretPath = SECRET_PATH_PREFIX + tenant.getId();
             Map<String, Object> secretData = new HashMap<>();
             secretData.put("private_key", didResult.getAccountInfo().getPrivateKey());
             secretData.put("public_key", didResult.getAccountInfo().getPublicKey());
             secretData.put("did", didResult.getDid());
+
             keyManagementService.writeSecret(secretPath, secretData);
             
-            // 4. 테넌트-DID 연결 정보 저장
-            TenantDid tenantDid = TenantDid.builder()
-                    .tenant(tenant)
-                    .did(didResult.getDid())
-                    .keyId(secretPath)  // keyId에 시크릿 경로 저장
-                    .build();
-            
-            tenant.addDid(tenantDid);
-            
-            log.info("테넌트 DID 생성 완료: tenantId={}, did={}, secretPath={}", 
+            log.info("테넌트 키쌍 저장 완료: tenantId={}, did={}, secretPath={}",
                     tenant.getId(), didResult.getDid(), secretPath);
             
-            return tenantDid;
+            return secretPath;
         } catch (Exception e) {
             log.error("테넌트 DID 생성 실패: tenantId={}", tenant.getId(), e);
             throw new RuntimeException("테넌트 DID 생성 실패: " + tenant.getId(), e);
@@ -178,30 +163,24 @@ public class DidServiceImpl implements DidService {
     public DidDocument resolveDid(String did) {
         try {
             // 1. 블록체인에서 DID 문서 해시 조회
-            String didDocumentHash = blockchainService.resolveDid(did);
-            
-            // 2. 로컬 저장소에서 DID 문서 조회
-            DidDocument document = documentRepository.findByHash(didDocumentHash);
-            if (document != null) {
-                log.info("DID 문서 조회 성공 (로컬 저장소): did={}", did);
-                return document;
+            String blockchainHash = blockchainService.resolveDid(did);
+
+            // 2. 로컬 저장소에서 DID로 문서 조회
+            DidDocument repositoryDocument = documentRepository.findByDid(did);
+            if (repositoryDocument == null) {
+                log.info("DID 문서 조회 실패 (로컬 저장소): did={}", did);
+                throw new NotFound("DID 문서 조회 실패");
             }
-            
-            // 3. 문서가 없으면 기본 문서 생성 (실제로는 에러를 반환해야 함)
-            log.warn("DID 문서를 찾을 수 없음: did={}", did);
-            DidDocument.VerificationMethod verificationMethod = DidDocument.VerificationMethod.builder()
-                    .id(did + "#keys-1")
-                    .type("EcdsaSecp256k1VerificationKey2019")
-                    .controller(did)
-                    .publicKeyMultibase("0x...")  // 실제 구현에서는 저장소에서 가져온 데이터 사용
-                    .build();
-            
-            return DidDocument.builder()
-                    .id(did)
-                    .controller(Collections.singletonList(did))
-                    .verificationMethod(Collections.singletonList(verificationMethod))
-                    .authentication(Collections.singletonList(did + "#keys-1"))
-                    .build();
+
+            // 3. 문서의 해시 계산 및 블록체인 해시와 비교 검증
+            String repositoryJson = objectMapper.writeValueAsString(repositoryDocument);
+            String repositoryHash = calculateSha3Hash(repositoryJson);
+
+            if (!repositoryHash.equals(blockchainHash)) {
+                throw new BadParameter("DID 문서가 유효하지 않습니다");
+            }
+
+            return repositoryDocument;
         } catch (Exception e) {
             log.error("DID 조회 실패: " + did, e);
             throw new RuntimeException("DID 조회 실패: " + did, e);
@@ -222,7 +201,7 @@ public class DidServiceImpl implements DidService {
             
             // 3. 블록체인에 DID 문서 해시 업데이트 (테스트를 위해 로컬 저장소도 업데이트)
             String txHash = blockchainService.updateDid(did, didDocumentHash);
-            documentRepository.update(did, didDocumentHash, document);
+            documentRepository.update(did, document);
             
             log.info("DID 업데이트 완료: did={}, hash={}, txHash={}", did, didDocumentHash, txHash);
             return txHash;
@@ -239,9 +218,6 @@ public class DidServiceImpl implements DidService {
             // DID 비활성화 (블록체인 및 로컬 저장소)
             String txHash = blockchainService.deactivateDid(did);
             documentRepository.remove(did);
-            
-            // 테넌트 DID 연결 정보도 삭제
-            tenantDidRepository.deleteByDid(did);
             
             log.info("DID 비활성화 완료: did={}, txHash={}", did, txHash);
             return txHash;

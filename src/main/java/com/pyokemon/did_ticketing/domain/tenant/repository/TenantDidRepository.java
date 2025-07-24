@@ -26,22 +26,4 @@ public interface TenantDidRepository extends JpaRepository<TenantDid, Long> {
      * @return 테넌트 DID 정보
      */
     Optional<TenantDid> findByDid(String did);
-    
-    /**
-     * 테넌트 ID로 DID 정보 삭제
-     * @param tenantId 테넌트 ID
-     */
-    void deleteByTenantId(Long tenantId);
-    
-    /**
-     * 테넌트로 DID 정보 삭제
-     * @param tenant 테넌트 엔티티
-     */
-    void deleteByTenant(Tenant tenant);
-    
-    /**
-     * DID로 테넌트 DID 정보 삭제
-     * @param did DID 식별자
-     */
-    void deleteByDid(String did);
 } 

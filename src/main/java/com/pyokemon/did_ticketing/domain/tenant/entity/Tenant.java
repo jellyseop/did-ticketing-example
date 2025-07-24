@@ -26,7 +26,6 @@ import java.util.List;
 @Entity
 @Table(name = "tenant")
 @Getter
-@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -39,9 +38,6 @@ public class Tenant {
     @Column(nullable = false, unique = true)
     private String name;
     
-    @OneToMany(mappedBy = "tenant")
-    private List<TenantDid> dids = new ArrayList<>();
-    
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -49,13 +45,5 @@ public class Tenant {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-    
-    /**
-     * DID 추가
-     * @param tenantDid 테넌트 DID
-     */
-    public void addDid(TenantDid tenantDid) {
-        dids.add(tenantDid);
-        tenantDid.setTenant(this);
-    }
+
 }

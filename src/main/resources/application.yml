@@ -20,6 +20,10 @@ jwt:
   secretKey: pyokemonDidTicketingSecretKey123456789012345678901234567890
   accessTokenValidityInMilliseconds: 3600000
   refreshTokenValidityInMilliseconds: 86400000
+  header: Authorization
+  expiresIn: 3600
+  mobileExpiresIn: 86400
+  tableExpiresIn: 43200
 
 # 블록체인 관련 설정
 blockchain:

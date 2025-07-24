@@ -26,9 +26,9 @@ public class TokenGenerator {
         this.refreshTokenValidityInMilliseconds = refreshTokenValidityInMilliseconds;
     }
 
-    public TokenDto.AccessRefreshToken generateAccessRefreshToken(String email, String audience) {
-        String accessToken = createToken(email, audience, accessTokenValidityInMilliseconds);
-        String refreshToken = createToken(email, audience, refreshTokenValidityInMilliseconds);
+    public TokenDto.AccessRefreshToken generateAccessRefreshToken(String email, String userId, String audience) {
+        String accessToken = createToken(email, userId, audience, "access", accessTokenValidityInMilliseconds);
+        String refreshToken = createToken(email, userId, audience, "refresh", refreshTokenValidityInMilliseconds);
 
         return TokenDto.AccessRefreshToken.builder()
                 .grantType("Bearer")
@@ -37,13 +37,15 @@ public class TokenGenerator {
                 .build();
     }
 
-    private String createToken(String email, String audience, long validityInMilliseconds) {
+    private String createToken(String email, String userId, String audience, String tokenType, long validityInMilliseconds) {
         Date now = new Date();
         Date validity = new Date(now.getTime() + validityInMilliseconds);
 
         return Jwts.builder()
                 .subject(email)
+                .claim("userId", userId)
                 .claim("aud", audience)
+                .claim("tokenType", tokenType)
                 .issuedAt(now)
                 .expiration(validity)
                 .signWith(key)

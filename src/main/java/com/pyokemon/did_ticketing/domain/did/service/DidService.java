@@ -15,7 +15,12 @@ public interface DidService {
      */
     DidResult createDid();
 
-    TenantDid createTenantDid(Tenant tenant);
+    /**
+     * 테넌트 키 서버측 저장
+     * @param didResult 테넌트 DID 정보
+     * @return 생성된 DID 정보 경로
+     */
+    String storeTenantKeys(Tenant tenant, DidResult didResult);
 
     /**
      * DID 조회

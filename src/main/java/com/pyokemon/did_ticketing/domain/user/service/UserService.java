@@ -16,6 +16,8 @@ import com.pyokemon.did_ticketing.domain.user.repository.UserRepository;
 import com.pyokemon.did_ticketing.security.jwt.TokenGenerator;
 import com.pyokemon.did_ticketing.security.jwt.dto.TokenDto;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class UserService {
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository userRepository;
     private final UserDeviceRepository userDeviceRepository;
@@ -75,6 +78,9 @@ public class UserService {
             throw new BadParameter("사용자 디바이스 정보가 일치하지 않습니다.");
         }
 
-        return tokenGenerator.generateAccessRefreshToken(loginDto.getEmail(), "mobile");
+        // userId를 문자열로 변환하여 토큰에 포함
+        String userId = user.getId().toString();
+        log.info("Generating token for user: {}, userId: {}", loginDto.getEmail(), userId);
+        return tokenGenerator.generateAccessRefreshToken(loginDto.getEmail(), userId, "mobile");
     }
 } 

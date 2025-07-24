@@ -1,6 +1,8 @@
 package com.pyokemon.did_ticketing.domain.did.service;
 
 import com.pyokemon.did_ticketing.domain.did.model.DidDocument;
+import com.pyokemon.did_ticketing.domain.tenant.entity.Tenant;
+import com.pyokemon.did_ticketing.domain.tenant.entity.TenantDid;
 
 /**
  * DID 서비스 인터페이스
@@ -12,7 +14,9 @@ public interface DidService {
      * @return 생성된 DID 및 문서
      */
     DidResult createDid();
-    
+
+    TenantDid createTenantDid(Tenant tenant);
+
     /**
      * DID 조회
      * @param did DID 식별자

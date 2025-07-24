@@ -2,31 +2,44 @@ package com.pyokemon.did_ticketing.domain.did.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pyokemon.did_ticketing.domain.did.model.DidDocument;
+import com.pyokemon.did_ticketing.domain.did.repository.DidDocumentRepository;
 import com.pyokemon.did_ticketing.domain.did.service.BlockchainService;
 import com.pyokemon.did_ticketing.domain.did.service.DidService;
+import com.pyokemon.did_ticketing.domain.did.service.KeyManagementService;
+import com.pyokemon.did_ticketing.domain.tenant.entity.Tenant;
+import com.pyokemon.did_ticketing.domain.tenant.entity.TenantDid;
+import com.pyokemon.did_ticketing.domain.tenant.repository.TenantDidRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.jcajce.provider.digest.SHA3;
 import org.bouncycastle.util.encoders.Hex;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
  * DID 서비스 구현
  */
-@Log4j2
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DidServiceImpl implements DidService {
     
     private static final String DID_METHOD = "pyokemon";
-    private final BlockchainService blockchainService;
-    private final ObjectMapper objectMapper;
+    private static final String SECRET_PATH_PREFIX = "secret/data/did/tenant/";
     
+    private final BlockchainService blockchainService;
+    private final DidDocumentRepository documentRepository;
+    private final KeyManagementService keyManagementService;
+    private final TenantDidRepository tenantDidRepository;
+    private final ObjectMapper objectMapper;
+
+    @Transactional
     @Override
     public DidResult createDid() {
         try {
@@ -56,9 +69,11 @@ public class DidServiceImpl implements DidService {
             String didDocumentJson = objectMapper.writeValueAsString(didDocument);
             String didDocumentHash = calculateSha3Hash(didDocumentJson);
             
-            // 6. DID 문서 해시를 블록체인에 등록
+            // 6. 블록체인에 DID 문서 해시 등록 (테스트를 위해 로컬 저장소에도 저장)
             blockchainService.registerDid(id, didDocumentHash);
+            documentRepository.store(id, didDocumentHash, didDocument);
             
+            log.info("DID 생성 완료: did={}, hash={}", id, didDocumentHash);
             return new DidResult(id, didDocument, accountInfo);
         } catch (Exception e) {
             log.error("DID 생성 실패", e);
@@ -66,15 +81,114 @@ public class DidServiceImpl implements DidService {
         }
     }
     
+    /**
+     * 테넌트를 위한 DID 생성
+     * @param tenant 테넌트 ID
+     * @return 생성된 DID 정보
+     */
+    @Transactional
+    @Override
+    public TenantDid createTenantDid(Tenant tenant) {
+        try {
+            // 1. 기존 테넌트 DID 확인
+            //물리적 삭제 X -> !is_valid 인 아이 존재한다면 throw
+            if (tenantDidRepository.findByTenant(tenant).isPresent()) {
+                throw new IllegalStateException("테넌트가 이미 DID를 가지고 있습니다: " + tenant.getId());
+            }
+            
+            // 2. DID 생성 (블록체인 계정 및 DID 문서 생성)
+            DidResult didResult = createDid();
+            
+            // 3. 개인키 정보 시크릿 저장소에 저장
+            String secretPath = SECRET_PATH_PREFIX + tenant.getId();
+            Map<String, Object> secretData = new HashMap<>();
+            secretData.put("private_key", didResult.getAccountInfo().getPrivateKey());
+            secretData.put("public_key", didResult.getAccountInfo().getPublicKey());
+            secretData.put("did", didResult.getDid());
+            keyManagementService.writeSecret(secretPath, secretData);
+            
+            // 4. 테넌트-DID 연결 정보 저장
+            TenantDid tenantDid = TenantDid.builder()
+                    .tenant(tenant)
+                    .did(didResult.getDid())
+                    .keyId(secretPath)  // keyId에 시크릿 경로 저장
+                    .build();
+            
+            tenant.addDid(tenantDid);
+            
+            log.info("테넌트 DID 생성 완료: tenantId={}, did={}, secretPath={}", 
+                    tenant.getId(), didResult.getDid(), secretPath);
+            
+            return tenantDid;
+        } catch (Exception e) {
+            log.error("테넌트 DID 생성 실패: tenantId={}", tenant.getId(), e);
+            throw new RuntimeException("테넌트 DID 생성 실패: " + tenant.getId(), e);
+        }
+    }
+    
+    /**
+     * 테넌트 DID로 메시지 서명
+     * @param tenant 테넌트 ID
+     * @param message 서명할 메시지
+     * @return 서명 값
+     */
+    public String signWithTenantDid(Tenant tenant, String message) {
+        try {
+            // 1. 테넌트 DID 정보 조회
+            TenantDid tenantDid = tenantDidRepository.findByTenant(tenant)
+                    .orElseThrow(() -> new IllegalArgumentException("테넌트 DID를 찾을 수 없습니다: " + tenant.getId()));
+            
+            // 2. 시크릿 경로로 서명 (keyId에 시크릿 경로가 저장되어 있음)
+            String signature = keyManagementService.sign(tenantDid.getKeyId(), message);
+            
+            log.info("테넌트 DID로 서명 완료: tenantId={}, did={}", tenant.getId(), tenantDid.getDid());
+            return signature;
+        } catch (Exception e) {
+            log.error("테넌트 DID 서명 실패: tenantId={}", tenant.getId(), e);
+            throw new RuntimeException("테넌트 DID 서명 실패: " + tenant.getId(), e);
+        }
+    }
+    
+    /**
+     * 테넌트 DID로 서명 검증
+     * @param tenant 테넌트 ID
+     * @param message 원본 메시지
+     * @param signature 서명 값
+     * @return 검증 결과
+     */
+    public boolean verifyWithTenantDid(Tenant tenant, String message, String signature) {
+        try {
+            // 1. 테넌트 DID 정보 조회
+            TenantDid tenantDid = tenantDidRepository.findByTenant(tenant)
+                    .orElseThrow(() -> new IllegalArgumentException("테넌트 DID를 찾을 수 없습니다: " + tenant.getId()));
+            
+            // 2. 시크릿 경로로 서명 검증 (keyId에 시크릿 경로가 저장되어 있음)
+            boolean result = keyManagementService.verify(tenantDid.getKeyId(), message, signature);
+            
+            log.info("테넌트 DID 서명 검증: tenantId={}, did={}, result={}", 
+                    tenant.getId(), tenantDid.getDid(), result);
+            return result;
+        } catch (Exception e) {
+            log.error("테넌트 DID 서명 검증 실패: tenantId={}", tenant.getId(), e);
+            throw new RuntimeException("테넌트 DID 서명 검증 실패: " + tenant.getId(), e);
+        }
+    }
+
     @Override
     public DidDocument resolveDid(String did) {
         try {
             // 1. 블록체인에서 DID 문서 해시 조회
             String didDocumentHash = blockchainService.resolveDid(did);
             
-            // 2. 해시로 IPFS나 다른 저장소에서 실제 문서를 가져오는 로직이 필요함
-            // 이 예제에서는 생략하고 간단한 DID 문서만 반환
+            // 2. 로컬 저장소에서 DID 문서 조회
+            DidDocument document = documentRepository.findByHash(didDocumentHash);
+            if (document != null) {
+                log.info("DID 문서 조회 성공 (로컬 저장소): did={}", did);
+                return document;
+            }
             
+            // 3. 문서가 없으면 기본 문서 생성 (실제로는 에러를 반환해야 함)
+            log.warn("DID 문서를 찾을 수 없음: did={}", did);
             DidDocument.VerificationMethod verificationMethod = DidDocument.VerificationMethod.builder()
                     .id(did + "#keys-1")
                     .type("EcdsaSecp256k1VerificationKey2019")
@@ -90,7 +204,7 @@ public class DidServiceImpl implements DidService {
                     .build();
         } catch (Exception e) {
             log.error("DID 조회 실패: " + did, e);
-            throw new RuntimeException();
+            throw new RuntimeException("DID 조회 실패: " + did, e);
         }
     }
     
@@ -106,8 +220,12 @@ public class DidServiceImpl implements DidService {
             String didDocumentJson = objectMapper.writeValueAsString(document);
             String didDocumentHash = calculateSha3Hash(didDocumentJson);
             
-            // 3. 블록체인에 DID 문서 해시 업데이트
-            return blockchainService.updateDid(did, didDocumentHash);
+            // 3. 블록체인에 DID 문서 해시 업데이트 (테스트를 위해 로컬 저장소도 업데이트)
+            String txHash = blockchainService.updateDid(did, didDocumentHash);
+            documentRepository.update(did, didDocumentHash, document);
+            
+            log.info("DID 업데이트 완료: did={}, hash={}, txHash={}", did, didDocumentHash, txHash);
+            return txHash;
         } catch (Exception e) {
             log.error("DID 업데이트 실패: " + did, e);
             throw new RuntimeException("DID 업데이트 실패: " + did, e);
@@ -115,10 +233,18 @@ public class DidServiceImpl implements DidService {
     }
     
     @Override
+    @Transactional
     public String deactivateDid(String did) {
         try {
-            // DID 비활성화
-            return blockchainService.deactivateDid(did);
+            // DID 비활성화 (블록체인 및 로컬 저장소)
+            String txHash = blockchainService.deactivateDid(did);
+            documentRepository.remove(did);
+            
+            // 테넌트 DID 연결 정보도 삭제
+            tenantDidRepository.deleteByDid(did);
+            
+            log.info("DID 비활성화 완료: did={}, txHash={}", did, txHash);
+            return txHash;
         } catch (Exception e) {
             log.error("DID 비활성화 실패: " + did, e);
             throw new RuntimeException("DID 비활성화 실패: " + did, e);

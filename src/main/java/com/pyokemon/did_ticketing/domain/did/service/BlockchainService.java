@@ -1,5 +1,8 @@
 package com.pyokemon.did_ticketing.domain.did.service;
 
+import lombok.Builder;
+import lombok.Getter;
+
 /**
  * 블록체인 서비스 인터페이스
  * 다양한 블록체인 플랫폼을 지원하기 위한 추상 인터페이스
@@ -45,27 +48,15 @@ public interface BlockchainService {
     /**
      * 계정 정보 모델
      */
+    @Getter
     class AccountInfo {
-        private String address;
         private String privateKey;
         private String publicKey;
-        
-        public AccountInfo(String address, String privateKey, String publicKey) {
-            this.address = address;
+
+        @Builder
+        public AccountInfo(String privateKey, String publicKey) {
             this.privateKey = privateKey;
             this.publicKey = publicKey;
-        }
-        
-        public String getAddress() {
-            return address;
-        }
-        
-        public String getPrivateKey() {
-            return privateKey;
-        }
-        
-        public String getPublicKey() {
-            return publicKey;
         }
     }
 } 

@@ -4,15 +4,13 @@ import com.pyokemon.did_ticketing.domain.user.entity.User;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 public class UserRegisterDto {
 
     @NotBlank(message = "Email is required")
@@ -23,10 +21,17 @@ public class UserRegisterDto {
     @Size(min = 8, message = "Password must be at least 8 characters")
     private String password;
 
+    @NotBlank(message = "Device ID is required")
+    private String deviceId;
+
+    /**
+     * DTO를 User 엔티티로 변환
+     * @return User 엔티티
+     */
     public User toEntity() {
-        User user = new User();
-        user.setEmail(this.email);
-        user.setPassword(this.password); // 비밀번호는 해시하지 않고 그대로 저장
-        return user;
+        return User.builder()
+                .email(email)
+                .password(password)
+                .build();
     }
 } 

@@ -77,13 +77,12 @@ public class EthereumBlockchainService implements BlockchainService {
             ECKeyPair keyPair = Keys.createEcKeyPair();
             BigInteger privateKeyInDec = keyPair.getPrivateKey();
             BigInteger publicKeyInDec = keyPair.getPublicKey();
-            String address = Keys.getAddress(keyPair);
-            
-            return new AccountInfo(
-                    "0x" + address,
-                    privateKeyInDec.toString(16),
-                    publicKeyInDec.toString(16)
-            );
+
+            return AccountInfo.builder()
+                    .privateKey(privateKeyInDec.toString(16))
+                    .publicKey(publicKeyInDec.toString(16))
+                    .build();
+
         } catch (InvalidAlgorithmParameterException | NoSuchAlgorithmException | NoSuchProviderException e) {
             log.error("계정 생성 실패", e);
             throw new RuntimeException("계정 생성 실패", e);

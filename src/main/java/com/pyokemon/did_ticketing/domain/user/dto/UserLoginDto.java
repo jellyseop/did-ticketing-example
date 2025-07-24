@@ -19,4 +19,7 @@ public class UserLoginDto {
 
     @NotBlank(message = "Password is required")
     private String password;
+
+    @NotBlank(message = "Device ID is required")
+    private String deviceId;
 } 

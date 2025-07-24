@@ -7,10 +7,10 @@ import com.pyokemon.did_ticketing.domain.did.model.DidDocument;
 import com.pyokemon.did_ticketing.domain.did.repository.DidDocumentRepository;
 import com.pyokemon.did_ticketing.domain.did.service.BlockchainService;
 import com.pyokemon.did_ticketing.domain.did.service.DidService;
-import com.pyokemon.did_ticketing.domain.did.service.KeyManagementService;
 import com.pyokemon.did_ticketing.domain.tenant.entity.Tenant;
 import com.pyokemon.did_ticketing.domain.tenant.entity.TenantDid;
 import com.pyokemon.did_ticketing.domain.tenant.repository.TenantDidRepository;
+import com.pyokemon.did_ticketing.domain.vc.service.KeyManagementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.jcajce.provider.digest.SHA3;
@@ -33,11 +33,10 @@ import java.util.UUID;
 public class DidServiceImpl implements DidService {
     
     private static final String DID_METHOD = "pyokemon";
-    private static final String SECRET_PATH_PREFIX = "secret/data/did/tenant/";
-    
+    private final KeyManagementService keyManagementService;
     private final BlockchainService blockchainService;
     private final DidDocumentRepository documentRepository;
-    private final KeyManagementService keyManagementService;
+
     private final TenantDidRepository tenantDidRepository;
     private final ObjectMapper objectMapper;
 
@@ -93,8 +92,9 @@ public class DidServiceImpl implements DidService {
     public String storeTenantKeys(Tenant tenant, DidResult didResult) {
         try {
             // 3. 개인키 정보 시크릿 저장소에 저장
-            String secretPath = SECRET_PATH_PREFIX + tenant.getId();
-            Map<String, Object> secretData = new HashMap<>();
+            String secretPath = keyManagementService.generateSecretPath(tenant.getId());
+            log.info("secretpath: {}", secretPath);
+            Map<String, String> secretData = new HashMap<>();
             secretData.put("private_key", didResult.getAccountInfo().getPrivateKey());
             secretData.put("public_key", didResult.getAccountInfo().getPublicKey());
             secretData.put("did", didResult.getDid());
@@ -111,28 +111,7 @@ public class DidServiceImpl implements DidService {
         }
     }
     
-    /**
-     * 테넌트 DID로 메시지 서명
-     * @param tenant 테넌트 ID
-     * @param message 서명할 메시지
-     * @return 서명 값
-     */
-    public String signWithTenantDid(Tenant tenant, String message) {
-        try {
-            // 1. 테넌트 DID 정보 조회
-            TenantDid tenantDid = tenantDidRepository.findByTenant(tenant)
-                    .orElseThrow(() -> new IllegalArgumentException("테넌트 DID를 찾을 수 없습니다: " + tenant.getId()));
-            
-            // 2. 시크릿 경로로 서명 (keyId에 시크릿 경로가 저장되어 있음)
-            String signature = keyManagementService.sign(tenantDid.getKeyId(), message);
-            
-            log.info("테넌트 DID로 서명 완료: tenantId={}, did={}", tenant.getId(), tenantDid.getDid());
-            return signature;
-        } catch (Exception e) {
-            log.error("테넌트 DID 서명 실패: tenantId={}", tenant.getId(), e);
-            throw new RuntimeException("테넌트 DID 서명 실패: " + tenant.getId(), e);
-        }
-    }
+
     
     /**
      * 테넌트 DID로 서명 검증

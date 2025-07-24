@@ -15,4 +15,6 @@ public interface UserDidRepository extends JpaRepository<UserDid, Long> {
      * @return DID Optional
      */
     Optional<UserDid> findByUser(User user);
+
+    Optional<UserDid> findByUserId(Long userId);
 }

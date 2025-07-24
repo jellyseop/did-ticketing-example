@@ -29,6 +29,7 @@ public class TenantService {
 
         TenantDid tenantDid = TenantDid.builder()
                 .tenant(tenant)
+                .did(didResult.getDid())
                 .keyId(secretPath)
                 .build();
 

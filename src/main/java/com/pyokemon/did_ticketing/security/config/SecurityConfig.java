@@ -29,11 +29,8 @@ public class SecurityConfig {
                 headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin)
             )
             .authorizeHttpRequests(auth -> 
-                auth.requestMatchers("/api/user/v1/auth/register", "/api/user/v1/auth/login", "/api/tenant/v1/auth/register").permitAll()
-                    // Swagger UI 관련 경로 허용
-                    .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                    .requestMatchers("/api/event/**").authenticated()
-                    .anyRequest().authenticated()
+                auth.requestMatchers("/api/user/v1/auth/register", "/api/user/v1/auth/login", "/api/tenant/v1/auth/register", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                    .requestMatchers("/api/booking/**", "/api/vc/issue").authenticated()
             )
             .addFilterBefore(new JwtAuthenticationFilter(tokenValidator), UsernamePasswordAuthenticationFilter.class);
 

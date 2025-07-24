@@ -53,7 +53,7 @@ public class BookingController {
      * @return 이벤트 정보
      */
     @GetMapping("/{id}")
-    @Operation(summary = "이벤트 상세 조회", description = "특정 이벤트의 상세 정보를 조회합니다.")
+    @Operation(summary = "예매 상세 조회", description = "특정 예매의 상세 정보를 조회합니다.")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "조회 성공", 
             content = @Content(schema = @Schema(implementation = EventResponse.class))),
@@ -61,8 +61,8 @@ public class BookingController {
         @ApiResponse(responseCode = "403", description = "접근 권한 없음"),
         @ApiResponse(responseCode = "404", description = "이벤트 없음")
     })
-    public ResponseEntity<?> getEventById(
-            @Parameter(description = "이벤트 ID", required = true) @PathVariable String id,
+    public ResponseEntity<?> getBookingById(
+            @Parameter(description = "예매 ID", required = true) @PathVariable String id,
             @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal userPrincipal) {
         BookingDto booking = eventService.getBookingById(id);
         if (booking == null) {
